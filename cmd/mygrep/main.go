@@ -36,47 +36,65 @@ func main() {
 }
 
 func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
-	for _, c := range line[index:] {
+	sizeToCut := -1
+	matchedPreviously := false
+	line = line[index:]
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		matched := false
 		if len(pattern) == 0 {
 			if onlyLast {
 				return false
 			}
-			fmt.Println("Matched on", string(line[index:]))
+			fmt.Println("Matched on", string(line))
 			return true
 		}
 
 		if pattern[0] == '\\' && pattern[1] == 'd' {
 			if c >= '0' && c <= '9' {
-				pattern = pattern[2:]
-				continue
+				sizeToCut = 2
+				matched = true
 			}
-		}
-
-		if pattern[0] == '\\' && pattern[1] == 'w' {
+		} else if pattern[0] == '\\' && pattern[1] == 'w' {
 			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-				pattern = pattern[2:]
-				continue
+				sizeToCut = 2
+				matched = true
 			}
-		}
-
-		if pattern[0] == '[' {
+		} else if pattern[0] == '[' {
 			closingBrackets := bytes.IndexAny([]byte(pattern), "]")
 			if pattern[1] == '^' {
 				if !bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
-					pattern = pattern[closingBrackets+1:]
-					continue
+					sizeToCut = closingBrackets + 1
+					matched = true
 				}
-				break
+			} else {
+				if bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
+					sizeToCut = closingBrackets + 1
+					matched = true
+				}
 			}
-
-			if bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
-				pattern = pattern[closingBrackets+1:]
-				continue
-			}
+		} else if bytes.ContainsAny([]byte{c}, string(pattern[0])) {
+			sizeToCut = 1
+			matched = true
 		}
 
-		if bytes.ContainsAny([]byte{c}, string(pattern[0])) {
-			pattern = pattern[1:]
+		//fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
+
+		if matched {
+			if sizeToCut < len(pattern) && pattern[sizeToCut] == '+' {
+				sizeToCut++
+				matchedPreviously = true
+			} else {
+				matchedPreviously = false
+				pattern = pattern[sizeToCut:]
+			}
+			continue
+		}
+
+		if matchedPreviously {
+			i-- // retry with next patterng
+			matchedPreviously = false
+			pattern = pattern[sizeToCut:]
 			continue
 		}
 
