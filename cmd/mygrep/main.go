@@ -35,9 +35,12 @@ func main() {
 	fmt.Println("Matched")
 }
 
-func matchPattern(line []byte, index int, pattern string) bool {
+func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 	for _, c := range line[index:] {
 		if len(pattern) == 0 {
+			if onlyLast {
+				return false
+			}
 			fmt.Println("Matched on", string(line[index:]))
 			return true
 		}
@@ -72,7 +75,7 @@ func matchPattern(line []byte, index int, pattern string) bool {
 			}
 		}
 
-		if bytes.ContainsAny([]byte{c}, pattern) {
+		if bytes.ContainsAny([]byte{c}, string(pattern[0])) {
 			pattern = pattern[1:]
 			continue
 		}
@@ -85,14 +88,21 @@ func matchPattern(line []byte, index int, pattern string) bool {
 
 func matchLine(line []byte, pattern string) (bool, error) {
 	options := line
+	onlyLast := false
+
 	if pattern[0] == '^' {
 		options = line[0:1]
 		pattern = pattern[1:]
 	}
-	for i := range options {
-		fmt.Println("Trying", string(line[i:]))
-		if matchPattern(line, i, pattern) {
 
+	if pattern[len(pattern)-1] == '$' {
+		onlyLast = true
+		pattern = pattern[:len(pattern)-1]
+	}
+
+	for i := range options {
+		fmt.Println("Trying", string(line[i:]), pattern)
+		if matchPattern(line, i, pattern, onlyLast) {
 			return true, nil
 		}
 	}
