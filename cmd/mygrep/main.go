@@ -36,7 +36,7 @@ func main() {
 }
 
 func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
-	sizeToCut := -1
+	sizeToCut := 1
 	matchedPreviously := false
 	line = line[index:]
 	for i := 0; i < len(line); i++ {
@@ -51,34 +51,37 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 		}
 
 		if pattern[0] == '\\' && pattern[1] == 'd' {
+			sizeToCut = 2
 			if c >= '0' && c <= '9' {
-				sizeToCut = 2
 				matched = true
 			}
 		} else if pattern[0] == '\\' && pattern[1] == 'w' {
+			sizeToCut = 2
 			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-				sizeToCut = 2
 				matched = true
 			}
 		} else if pattern[0] == '[' {
 			closingBrackets := bytes.IndexAny([]byte(pattern), "]")
+			sizeToCut = closingBrackets + 1
 			if pattern[1] == '^' {
 				if !bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
-					sizeToCut = closingBrackets + 1
 					matched = true
 				}
 			} else {
 				if bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
-					sizeToCut = closingBrackets + 1
 					matched = true
 				}
 			}
 		} else if bytes.ContainsAny([]byte{c}, string(pattern[0])) {
-			sizeToCut = 1
 			matched = true
 		}
 
-		//fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
+		fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
+
+		if sizeToCut < len(pattern) && pattern[sizeToCut] == '?' {
+			sizeToCut++
+			matched = true
+		}
 
 		if matched {
 			if sizeToCut < len(pattern) && pattern[sizeToCut] == '+' {
@@ -99,6 +102,26 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 		}
 
 		return false
+	}
+
+	for len(pattern) > 0 {
+		if pattern[0] == '\\' && pattern[1] == 'd' {
+			sizeToCut = 2
+		} else if pattern[0] == '\\' && pattern[1] == 'w' {
+			sizeToCut = 2
+		} else if pattern[0] == '[' {
+			closingBrackets := bytes.IndexAny([]byte(pattern), "]")
+			sizeToCut = closingBrackets + 1
+		} else {
+			sizeToCut = 1
+		}
+
+		if sizeToCut < len(pattern) && pattern[sizeToCut] == '?' {
+			sizeToCut++
+			pattern = pattern[sizeToCut:]
+			continue
+		}
+		break
 	}
 
 	return len(pattern) <= 0
