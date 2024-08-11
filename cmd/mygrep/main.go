@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 // Usage: echo <input_text> | your_program.sh -E <pattern>
@@ -41,6 +42,13 @@ func matchLine(line []byte, pattern string) (bool, error) {
 		ok = bytes.ContainsFunc(line, func(c rune) bool {
 			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 		})
+	} else if strings.HasPrefix(pattern, "[") && strings.HasSuffix(pattern, "]") {
+		for _, c := range pattern[1 : len(pattern)-1] {
+			ok = bytes.ContainsAny(line, string(c))
+			if ok {
+				break
+			}
+		}
 	} else {
 		ok = bytes.ContainsAny(line, pattern)
 	}
