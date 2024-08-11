@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 )
 
 // Usage: echo <input_text> | your_program.sh -E <pattern>
@@ -30,33 +29,64 @@ func main() {
 	}
 
 	if !ok {
+		fmt.Println("Did not match")
 		os.Exit(1)
 	}
+	fmt.Println("Matched")
+}
+
+func matchPattern(line []byte, index int, pattern string) bool {
+
+	for _, c := range line[index:] {
+		if len(pattern) == 0 {
+			return true
+		}
+
+		if pattern[0] == '\\' && pattern[1] == 'd' {
+			if c >= '0' && c <= '9' {
+				pattern = pattern[2:]
+				continue
+			}
+		}
+
+		if pattern[0] == '\\' && pattern[1] == 'w' {
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+				pattern = pattern[2:]
+				continue
+			}
+		}
+
+		if pattern[0] == '[' {
+			closingBrackets := bytes.IndexAny([]byte(pattern), "]")
+			if pattern[1] == '^' {
+				if !bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
+					pattern = pattern[closingBrackets+1:]
+					continue
+				}
+				break
+			}
+
+			if bytes.ContainsAny([]byte{c}, pattern[1:closingBrackets]) {
+				pattern = pattern[closingBrackets+1:]
+				continue
+			}
+		}
+
+		if bytes.ContainsAny([]byte{c}, pattern) {
+			continue
+		}
+
+		return false
+	}
+	return true
 }
 
 func matchLine(line []byte, pattern string) (bool, error) {
-	var ok bool
-	if pattern == "\\d" {
-		ok = bytes.ContainsAny(line, "0123456789")
-	} else if pattern == "\\w" {
-		ok = bytes.ContainsFunc(line, func(c rune) bool {
-			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
-		})
-	} else if strings.HasPrefix(pattern, "[") && strings.HasSuffix(pattern, "]") {
-		if strings.HasPrefix(pattern, "[^") {
-			for _, c := range line {
-				ok = bytes.ContainsAny([]byte{c}, pattern[2:len(pattern)-1])
-				if !ok {
-					return true, nil
-				}
-			}
-			ok = false
-		} else {
-			ok = bytes.ContainsAny(line, pattern[1:len(pattern)-1])
+	for i := range line {
+		if matchPattern(line, i, pattern) {
+			return true, nil
 		}
-	} else {
-		ok = bytes.ContainsAny(line, pattern)
 	}
 
-	return ok, nil
+	return false, nil
 }
