@@ -36,9 +36,9 @@ func main() {
 }
 
 func matchPattern(line []byte, index int, pattern string) bool {
-
 	for _, c := range line[index:] {
 		if len(pattern) == 0 {
+			fmt.Println("Matched on", string(line[index:]))
 			return true
 		}
 
@@ -73,17 +73,21 @@ func matchPattern(line []byte, index int, pattern string) bool {
 		}
 
 		if bytes.ContainsAny([]byte{c}, pattern) {
+			pattern = pattern[1:]
 			continue
 		}
 
 		return false
 	}
-	return true
+
+	return len(pattern) <= 0
 }
 
 func matchLine(line []byte, pattern string) (bool, error) {
 	for i := range line {
+		fmt.Println("Trying", string(line[i:]))
 		if matchPattern(line, i, pattern) {
+
 			return true, nil
 		}
 	}
