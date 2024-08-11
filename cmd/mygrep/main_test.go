@@ -44,6 +44,9 @@ func TestMatchLine(t *testing.T) {
 		{[]byte("cat"), "(cat|dog)", true},
 		{[]byte("dog"), "(cat|dog)", true},
 		{[]byte("apple"), "(cat|dog)", false},
+		{[]byte("a cat"), "a (cat|dog)", true},
+		{[]byte("dogs"), "(cat|dog)s", true},
+		{[]byte("cats"), "(cat|dog)s", true},
 	}
 	for _, tt := range matchLineTests {
 		actual, _ := matchLine(tt.line, tt.pattern)

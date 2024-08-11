@@ -36,19 +36,20 @@ func main() {
 	fmt.Println("Matched")
 }
 
-func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
+func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, int) {
 	sizeToCut := 1
 	matchedPreviously := false
 	line = line[index:]
-	for i := 0; i < len(line); i++ {
+	i := 0
+	for i = 0; i < len(line); i++ {
 		c := line[i]
 		matched := false
 		if len(pattern) == 0 {
 			if onlyLast {
-				return false
+				return false, -1
 			}
 			fmt.Println("Matched on", string(line))
-			return true
+			return true, i
 		}
 
 		if pattern[0] == '\\' && pattern[1] == 'd' {
@@ -66,7 +67,9 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 			sizeToCut = closingParenthesis + 1
 			rules := strings.Split(pattern[1:closingParenthesis], "|")
 			for _, rule := range rules {
-				if matchPattern(line[index:], 0, rule, false) {
+				ok, size := matchPattern(line[i:], 0, rule, false)
+				if ok {
+					i += size - 1
 					matched = true
 					break
 				}
@@ -120,7 +123,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 			continue
 		}
 
-		return false
+		return false, -1
 	}
 
 	for len(pattern) > 0 {
@@ -151,7 +154,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 		break
 	}
 
-	return len(pattern) <= 0
+	return len(pattern) <= 0, i
 }
 
 func matchLine(line []byte, pattern string) (bool, error) {
@@ -170,7 +173,7 @@ func matchLine(line []byte, pattern string) (bool, error) {
 
 	for i := range options {
 		fmt.Println("Trying", string(line[i:]), pattern)
-		if matchPattern(line, i, pattern, onlyLast) {
+		if ok, _ := matchPattern(line, i, pattern, onlyLast); ok {
 			return true, nil
 		}
 	}
