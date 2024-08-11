@@ -72,8 +72,11 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 					matched = true
 				}
 			}
-		} else if bytes.ContainsAny([]byte{c}, string(pattern[0])) {
-			matched = true
+		} else {
+			sizeToCut = 1
+			if bytes.ContainsAny([]byte{c}, string(pattern[0])) {
+				matched = true
+			}
 		}
 
 		fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
