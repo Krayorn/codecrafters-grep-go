@@ -43,11 +43,16 @@ func matchLine(line []byte, pattern string) (bool, error) {
 			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 		})
 	} else if strings.HasPrefix(pattern, "[") && strings.HasSuffix(pattern, "]") {
-		for _, c := range pattern[1 : len(pattern)-1] {
-			ok = bytes.ContainsAny(line, string(c))
-			if ok {
-				break
+		if strings.HasPrefix(pattern, "[^") {
+			for _, c := range line {
+				ok = bytes.ContainsAny([]byte{c}, pattern[2:len(pattern)-1])
+				if !ok {
+					return true, nil
+				}
 			}
+			ok = false
+		} else {
+			ok = bytes.ContainsAny(line, pattern[1:len(pattern)-1])
 		}
 	} else {
 		ok = bytes.ContainsAny(line, pattern)
