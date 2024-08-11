@@ -37,6 +37,10 @@ func matchLine(line []byte, pattern string) (bool, error) {
 	var ok bool
 	if pattern == "\\d" {
 		ok = bytes.ContainsAny(line, "0123456789")
+	} else if pattern == "\\w" {
+		ok = bytes.ContainsFunc(line, func(c rune) bool {
+			return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		})
 	} else {
 		ok = bytes.ContainsAny(line, pattern)
 	}
