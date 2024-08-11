@@ -83,6 +83,9 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) bool {
 
 		if sizeToCut < len(pattern) && pattern[sizeToCut] == '?' {
 			sizeToCut++
+			if !matched {
+				i--
+			}
 			matched = true
 		}
 
