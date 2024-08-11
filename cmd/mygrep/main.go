@@ -84,7 +84,12 @@ func matchPattern(line []byte, index int, pattern string) bool {
 }
 
 func matchLine(line []byte, pattern string) (bool, error) {
-	for i := range line {
+	options := line
+	if pattern[0] == '^' {
+		options = line[0:1]
+		pattern = pattern[1:]
+	}
+	for i := range options {
 		fmt.Println("Trying", string(line[i:]))
 		if matchPattern(line, i, pattern) {
 
