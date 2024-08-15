@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 )
 
 // Usage: echo <input_text> | your_program.sh -E <pattern>
@@ -63,9 +62,32 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 				matched = true
 			}
 		} else if pattern[0] == '(' {
-			closingParenthesis := bytes.IndexAny([]byte(pattern), ")")
+			closingParenthesis := -1
+			c := 1
+			last := 1
+			rules := make([]string, 0)
+			for j := 1; j < len(pattern); j++ {
+				if pattern[j] == '(' {
+					c++
+				}
+				if pattern[j] == ')' {
+					c--
+				}
+
+				if pattern[j] == '|' {
+					if c == 1 {
+						rules = append(rules, pattern[last:j])
+						last = j + 1
+					}
+				}
+				if c == 0 {
+					closingParenthesis = j
+					break
+				}
+			}
+
+			rules = append(rules, pattern[last:closingParenthesis])
 			sizeToCut = closingParenthesis + 1
-			rules := strings.Split(pattern[1:closingParenthesis], "|")
 			for _, rule := range rules {
 				ok, size := matchPattern(line[i:], 0, rule, false)
 				if ok {
