@@ -92,15 +92,34 @@ func matchLine(text []byte, pattern string) bool {
 		line := text[i:]
 		groups := make([]string, 0)
 
-		fmt.Println("Test", string(line))
-
+		extras = make(map[int]Lazy)
 		ok, _, _ := tryPatterns(line, patterns, groups)
 		if ok {
 			return true
 		}
+		for key := len(extras); key >= 0; key-- {
+			for {
+				if extras[key].Max-1 < 1 {
+					break
+				}
+				extras[key] = Lazy{Max: extras[key].Max - 1, Current: 0, Limit: extras[key].Max - 1}
+				ok, _, _ := tryPatterns(line, patterns, groups)
+				if ok {
+					return true
+				}
+			}
+		}
 	}
 	return false
 }
+
+type Lazy struct {
+	Max     int
+	Limit   int
+	Current int
+}
+
+var extras map[int]Lazy
 
 func tryPatterns(line []byte, patterns []string, groups []string) (bool, int, []string) {
 	originalSize := len(line)
@@ -116,6 +135,7 @@ func tryPatterns(line []byte, patterns []string, groups []string) (bool, int, []
 		if len(line) == 0 {
 			return false, -1, groups
 		}
+
 		size, foundGroups := matchPattern(pattern, line, groups)
 		groups = foundGroups
 		if size == 0 {
@@ -127,6 +147,22 @@ func tryPatterns(line []byte, patterns []string, groups []string) (bool, int, []
 
 		line = line[size:]
 		if pattern[len(pattern)-1] == '+' {
+			limit := -1
+			current := -1
+			for index, value := range groups {
+				if value == "XXX" {
+					if val, ok := extras[index]; ok {
+						limit = val.Limit
+						val.Current++
+						current = val.Current
+						extras[index] = val
+					}
+					break
+				}
+			}
+			if limit != -1 && current >= limit {
+				continue
+			}
 			ok, size, subGroups := tryPatterns(line, patterns[patternIndex:], groups)
 			if ok {
 				return true, originalSize - len(line) + size, subGroups
@@ -192,6 +228,9 @@ func matchPattern(pattern string, line []byte, groups []string) (int, []string) 
 			ok, totalSize, subGroups := tryPatterns(line, subPatterns, groups)
 			if ok {
 				groups[len(groups)-1] = string(line[:totalSize])
+				if _, ok := extras[len(groups)-1]; !ok {
+					extras[len(groups)-1] = Lazy{Max: totalSize, Limit: -1}
+				}
 				groups = append(groups, subGroups[len(groups):]...)
 				return totalSize, groups
 			}
