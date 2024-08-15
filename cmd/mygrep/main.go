@@ -67,7 +67,9 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 		} else if pattern[0] == '\\' && pattern[1] >= '0' && pattern[1] <= '9' {
 			sizeToCut = 2
 			number, _ := strconv.Atoi(string(pattern[1]))
+			fmt.Println(groups[number], string(line[i:i+len(groups[number])]))
 			if groups[number] == string(line[i:i+len(groups[number])]) {
+				i += len(groups[number]) - 1
 				matched = true
 			}
 		} else if pattern[0] == '(' {
@@ -101,6 +103,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 				ok, size := matchPattern(line[i:], 0, rule, false)
 				if ok {
 					groups[1] = string(line[i : i+size])
+					fmt.Println("groups", groups)
 					i += size - 1
 					matched = true
 					break
@@ -127,7 +130,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 			}
 		}
 
-		//fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
+		fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
 
 		if sizeToCut < len(pattern) && pattern[sizeToCut] == '?' {
 			sizeToCut++
