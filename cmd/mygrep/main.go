@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 )
 
 // Usage: echo <input_text> | your_program.sh -E <pattern>
@@ -40,6 +41,8 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 	matchedPreviously := false
 	line = line[index:]
 	i := 0
+
+	groups := make(map[int]string)
 	for i = 0; i < len(line); i++ {
 		c := line[i]
 		matched := false
@@ -47,7 +50,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 			if onlyLast {
 				return false, -1
 			}
-			fmt.Println("Matched on", string(line))
+			//fmt.Println("Matched on", string(line))
 			return true, i
 		}
 
@@ -59,6 +62,12 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 		} else if pattern[0] == '\\' && pattern[1] == 'w' {
 			sizeToCut = 2
 			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+				matched = true
+			}
+		} else if pattern[0] == '\\' && pattern[1] >= '0' && pattern[1] <= '9' {
+			sizeToCut = 2
+			number, _ := strconv.Atoi(string(pattern[1]))
+			if groups[number] == string(line[i:i+len(groups[number])]) {
 				matched = true
 			}
 		} else if pattern[0] == '(' {
@@ -91,6 +100,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 			for _, rule := range rules {
 				ok, size := matchPattern(line[i:], 0, rule, false)
 				if ok {
+					groups[1] = string(line[i : i+size])
 					i += size - 1
 					matched = true
 					break
@@ -117,7 +127,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 			}
 		}
 
-		fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
+		//fmt.Println("Checking at", string(c), pattern, matched, matchedPreviously)
 
 		if sizeToCut < len(pattern) && pattern[sizeToCut] == '?' {
 			sizeToCut++
@@ -194,7 +204,7 @@ func matchLine(line []byte, pattern string) (bool, error) {
 	}
 
 	for i := range options {
-		fmt.Println("Trying", string(line[i:]), pattern)
+		//fmt.Println("Trying", string(line[i:]), pattern)
 		if ok, _ := matchPattern(line, i, pattern, onlyLast); ok {
 			return true, nil
 		}
