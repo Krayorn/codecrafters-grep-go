@@ -36,22 +36,21 @@ func main() {
 	fmt.Println("Matched")
 }
 
-func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, int) {
+func matchPattern(line []byte, index int, pattern string, onlyLast bool, groups []string) (bool, int, []string) {
 	sizeToCut := 1
 	matchedPreviously := false
 	line = line[index:]
 	i := 0
 
-	groups := make(map[int]string)
 	for i = 0; i < len(line); i++ {
 		c := line[i]
 		matched := false
 		if len(pattern) == 0 {
 			if onlyLast {
-				return false, -1
+				return false, -1, groups
 			}
-			//fmt.Println("Matched on", string(line))
-			return true, i
+			fmt.Println("Matched on", string(line))
+			return true, i, groups
 		}
 
 		if pattern[0] == '\\' && pattern[1] == 'd' {
@@ -67,9 +66,9 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 		} else if pattern[0] == '\\' && pattern[1] >= '0' && pattern[1] <= '9' {
 			sizeToCut = 2
 			number, _ := strconv.Atoi(string(pattern[1]))
-			fmt.Println(groups[number], string(line[i:i+len(groups[number])]))
-			if groups[number] == string(line[i:i+len(groups[number])]) {
-				i += len(groups[number]) - 1
+			fmt.Println("finding groups", groups)
+			if groups[number-1] == string(line[i:i+len(groups[number-1])]) {
+				i += len(groups[number-1]) - 1
 				matched = true
 			}
 		} else if pattern[0] == '(' {
@@ -99,11 +98,13 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 
 			rules = append(rules, pattern[last:closingParenthesis])
 			sizeToCut = closingParenthesis + 1
+			groups = append(groups, "XXX")
+
 			for _, rule := range rules {
-				ok, size := matchPattern(line[i:], 0, rule, false)
+				ok, size, subGroups := matchPattern(line[i:], 0, rule, false, groups)
 				if ok {
-					groups[1] = string(line[i : i+size])
-					fmt.Println("groups", groups)
+					groups[len(groups)-1] = string(line[i : i+size])
+					groups = append(groups, subGroups[len(groups):]...)
 					i += size - 1
 					matched = true
 					break
@@ -158,7 +159,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 			continue
 		}
 
-		return false, -1
+		return false, -1, groups
 	}
 
 	for len(pattern) > 0 {
@@ -189,7 +190,7 @@ func matchPattern(line []byte, index int, pattern string, onlyLast bool) (bool, 
 		break
 	}
 
-	return len(pattern) <= 0, i
+	return len(pattern) <= 0, i, groups
 }
 
 func matchLine(line []byte, pattern string) (bool, error) {
@@ -207,8 +208,9 @@ func matchLine(line []byte, pattern string) (bool, error) {
 	}
 
 	for i := range options {
+		groups := make([]string, 0)
 		//fmt.Println("Trying", string(line[i:]), pattern)
-		if ok, _ := matchPattern(line, i, pattern, onlyLast); ok {
+		if ok, _, _ := matchPattern(line, i, pattern, onlyLast, groups); ok {
 			return true, nil
 		}
 	}
