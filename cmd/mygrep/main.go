@@ -19,20 +19,24 @@ func main() {
 
 	pattern := os.Args[2]
 
-	if len(os.Args) == 4 {
-		filename := os.Args[3]
-		file, _ := os.Open(filename)
-		scanner := bufio.NewScanner(file)
-
+	if len(os.Args) >= 4 {
+		i := 3
 		anyMatch := false
 
-		for scanner.Scan() {
-			line := scanner.Text()
-			ok := matchLine([]byte(line), pattern)
-			if ok {
-				anyMatch = true
-				fmt.Println(line)
+		for len(os.Args) > i {
+			filename := os.Args[i]
+			file, _ := os.Open(filename)
+			scanner := bufio.NewScanner(file)
+
+			for scanner.Scan() {
+				line := scanner.Text()
+				ok := matchLine([]byte(line), pattern)
+				if ok {
+					anyMatch = true
+					fmt.Println(line)
+				}
 			}
+			i++
 		}
 
 		if anyMatch {
