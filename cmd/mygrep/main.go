@@ -33,7 +33,11 @@ func main() {
 				ok := matchLine([]byte(line), pattern)
 				if ok {
 					anyMatch = true
-					fmt.Println(line)
+					if len(os.Args) == 4 {
+						fmt.Printf("%s\n", line)
+					} else {
+						fmt.Printf("%s:%s\n", filename, line)
+					}
 				}
 			}
 			i++
