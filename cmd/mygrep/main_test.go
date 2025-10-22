@@ -33,6 +33,8 @@ func TestMatchLine(t *testing.T) {
 		{[]byte("caats"), "ca+ts", true},
 		{[]byte("caaaaats"), "ca+ts", true},
 		{[]byte("apple"), "a+", true},
+		{[]byte("apple"), "applex?", true},
+		{[]byte("apple"), "applex*", true},
 		{[]byte("Sass"), "a+", true},
 		{[]byte("d33ts"), "d\\d+ts", true},
 		{[]byte("hello"), "ca+ts", false},

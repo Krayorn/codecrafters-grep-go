@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -18,6 +19,29 @@ func main() {
 
 	pattern := os.Args[2]
 
+	if len(os.Args) == 4 {
+		filename := os.Args[3]
+		file, _ := os.Open(filename)
+		scanner := bufio.NewScanner(file)
+
+		anyMatch := false
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			ok := matchLine([]byte(line), pattern)
+			if ok {
+				anyMatch = true
+				fmt.Println(line)
+			}
+		}
+
+		if anyMatch {
+			os.Exit(0)
+		}
+		os.Exit(1)
+
+	}
+
 	line, err := io.ReadAll(os.Stdin) // assume we're only dealing with a single line
 	if err != nil {
 		os.Exit(2)
@@ -25,11 +49,10 @@ func main() {
 
 	ok := matchLine(line, pattern)
 	if !ok {
-		fmt.Println("Did not match")
 		os.Exit(1)
 	}
 
-	fmt.Println("Matched")
+	os.Exit(0)
 }
 
 func splitPatterns(pattern string) []string {
@@ -61,7 +84,7 @@ func splitPatterns(pattern string) []string {
 			}
 			patterns = append(patterns, pattern[:end+1])
 			pattern = pattern[end+1:]
-		case '+', '?':
+		case '+', '?', '*':
 			patterns[len(patterns)-1] += string(pattern[0])
 			pattern = pattern[1:]
 		default:
@@ -133,20 +156,23 @@ func tryPatterns(line []byte, patterns []string, groups []string) (bool, int, []
 		}
 
 		if len(line) == 0 {
+			if pattern[len(pattern)-1] == '?' || pattern[len(pattern)-1] == '*' {
+				continue
+			}
 			return false, -1, groups
 		}
 
 		size, foundGroups := matchPattern(pattern, line, groups)
 		groups = foundGroups
 		if size == 0 {
-			if pattern[len(pattern)-1] == '?' {
+			if pattern[len(pattern)-1] == '?' || pattern[len(pattern)-1] == '*' {
 				continue
 			}
 			return false, -1, groups
 		}
 
 		line = line[size:]
-		if pattern[len(pattern)-1] == '+' {
+		if pattern[len(pattern)-1] == '+' || pattern[len(pattern)-1] == '*' {
 			limit := -1
 			current := -1
 			for index, value := range groups {
