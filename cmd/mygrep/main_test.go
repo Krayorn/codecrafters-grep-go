@@ -15,6 +15,7 @@ func TestMatchLine(t *testing.T) {
 		{[]byte("apple"), "\\d", false},
 		{[]byte("word"), "\\w", true},
 		{[]byte("$!?"), "\\w", false},
+		{[]byte("#×÷_=#×"), "\\w", true},
 		{[]byte("a"), "[abcd]", true},
 		{[]byte("efgh"), "[abcd]", false},
 		{[]byte("apple"), "[^xyz]", true},

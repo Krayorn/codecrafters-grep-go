@@ -205,7 +205,7 @@ func matchPattern(pattern string, line []byte, groups []string) (int, []string) 
 			return 1, groups
 		}
 	} else if pattern[0] == '\\' && pattern[1] == 'w' {
-		if (line[0] >= 'a' && line[0] <= 'z') || (line[0] >= 'A' && line[0] <= 'Z') || (line[0] >= '0' && line[0] <= '9') {
+		if (line[0] >= 'a' && line[0] <= 'z') || (line[0] >= 'A' && line[0] <= 'Z') || (line[0] >= '0' && line[0] <= '9') || line[0] == '_' {
 			return 1, groups
 		}
 	} else if pattern[0] == '\\' && pattern[1] >= '0' && pattern[1] <= '9' {
