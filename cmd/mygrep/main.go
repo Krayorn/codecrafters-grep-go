@@ -24,6 +24,7 @@ func walk(s string, d fs.DirEntry, err error) error {
 	return nil
 }
 
+// Usage: echo <input_text> | your_program.sh -E <pattern>
 func main() {
 	recursive := false
 	pattern := ""
@@ -102,6 +103,7 @@ func main() {
 
 	ok := matchLine(line, pattern)
 	if !ok {
+		fmt.Println("Not matched")
 		os.Exit(1)
 	}
 
@@ -195,6 +197,7 @@ func splitPatterns(pattern string) []Pattern {
 
 func matchLine(text []byte, pattern string) bool {
 	patterns := splitPatterns(pattern)
+	fmt.Println(patterns)
 	if len(patterns) == 0 {
 		return true
 	}
