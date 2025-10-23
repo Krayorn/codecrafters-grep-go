@@ -106,20 +106,40 @@ func main() {
 		os.Exit(1)
 	}
 
+	fmt.Println("Matched")
 	os.Exit(0)
 }
 
-func splitPatterns(pattern string) []string {
-	patterns := make([]string, 0)
+type Pattern struct {
+	Pattern  string
+	Min      int
+	Max      int
+	Multiple bool
+	Optional bool
+	Matched  int
+}
+
+func splitPatterns(pattern string) []Pattern {
+	patterns := make([]Pattern, 0)
 
 	for len(pattern) > 0 {
+		currentPattern := Pattern{Min: -1, Max: -1}
 		switch pattern[0] {
 		case '\\':
-			patterns = append(patterns, pattern[:2])
+			currentPattern.Pattern = pattern[:2]
+			patterns = append(patterns, currentPattern)
 			pattern = pattern[2:]
 		case '[':
+
 			end := strings.IndexByte(pattern, ']')
-			patterns = append(patterns, pattern[:end+1])
+			currentPattern.Pattern = pattern[:end+1]
+			patterns = append(patterns, currentPattern)
+			pattern = pattern[end+1:]
+		case '{':
+			end := strings.IndexByte(pattern, '}')
+			targetNumber, _ := strconv.Atoi(string(pattern[1]))
+			patterns[len(patterns)-1].Max = targetNumber
+			patterns[len(patterns)-1].Min = targetNumber
 			pattern = pattern[end+1:]
 		case '(':
 			end := -1
@@ -136,13 +156,23 @@ func splitPatterns(pattern string) []string {
 					break
 				}
 			}
-			patterns = append(patterns, pattern[:end+1])
+			currentPattern.Pattern = pattern[:end+1]
+			patterns = append(patterns, currentPattern)
+
 			pattern = pattern[end+1:]
-		case '+', '?', '*':
-			patterns[len(patterns)-1] += string(pattern[0])
+		case '+':
+			patterns[len(patterns)-1].Multiple = true
+			pattern = pattern[1:]
+		case '?':
+			patterns[len(patterns)-1].Optional = true
+			pattern = pattern[1:]
+		case '*':
+			patterns[len(patterns)-1].Multiple = true
+			patterns[len(patterns)-1].Optional = true
 			pattern = pattern[1:]
 		default:
-			patterns = append(patterns, string(pattern[0]))
+			currentPattern.Pattern = string(pattern[0])
+			patterns = append(patterns, currentPattern)
 			pattern = pattern[1:]
 		}
 	}
@@ -156,14 +186,18 @@ func matchLine(text []byte, pattern string) bool {
 	}
 
 	onlyFirst := false
-	if patterns[0] == "^" {
-		patterns = patterns[1:]
+	if patterns[0].Pattern == "^" {
 		onlyFirst = true
 	}
 
 	for i := range text {
 		if onlyFirst && i > 0 {
 			break
+		}
+		// because we store info in the patterns now, we need to reset them between tries
+		patterns = splitPatterns(pattern)
+		if patterns[0].Pattern == "^" {
+			patterns = patterns[1:]
 		}
 
 		line := text[i:]
@@ -180,6 +214,7 @@ func matchLine(text []byte, pattern string) bool {
 					break
 				}
 				extras[key] = Lazy{Max: extras[key].Max - 1, Current: 0, Limit: extras[key].Max - 1}
+				patterns = splitPatterns(pattern)
 				ok, _, _ := tryPatterns(line, patterns, groups)
 				if ok {
 					return true
@@ -198,10 +233,10 @@ type Lazy struct {
 
 var extras map[int]Lazy
 
-func tryPatterns(line []byte, patterns []string, groups []string) (bool, int, []string) {
+func tryPatterns(line []byte, patterns []Pattern, groups []string) (bool, int, []string) {
 	originalSize := len(line)
 	for patternIndex, pattern := range patterns {
-		if pattern == "$" {
+		if pattern.Pattern == "$" {
 			if len(line) == 0 {
 				return true, originalSize, groups
 			} else {
@@ -210,23 +245,36 @@ func tryPatterns(line []byte, patterns []string, groups []string) (bool, int, []
 		}
 
 		if len(line) == 0 {
-			if pattern[len(pattern)-1] == '?' || pattern[len(pattern)-1] == '*' {
+			if pattern.Optional {
 				continue
 			}
 			return false, -1, groups
 		}
 
-		size, foundGroups := matchPattern(pattern, line, groups)
+		size, foundGroups := matchPattern(pattern.Pattern, line, groups)
 		groups = foundGroups
 		if size == 0 {
-			if pattern[len(pattern)-1] == '?' || pattern[len(pattern)-1] == '*' {
+			if pattern.Optional || (pattern.Min != -1 && pattern.Matched >= pattern.Min) {
 				continue
 			}
 			return false, -1, groups
 		}
 
 		line = line[size:]
-		if pattern[len(pattern)-1] == '+' || pattern[len(pattern)-1] == '*' {
+
+		if pattern.Min != -1 || pattern.Max != -1 {
+			patterns[patternIndex].Matched = patterns[patternIndex].Matched + 1
+			if patterns[patternIndex].Matched == patterns[patternIndex].Max {
+				continue
+			}
+			ok, size, subGroups := tryPatterns(line, patterns[patternIndex:], groups)
+			if ok {
+				return true, originalSize - len(line) + size, subGroups
+			}
+			return false, -1, groups
+		}
+
+		if pattern.Multiple {
 			limit := -1
 			current := -1
 			for index, value := range groups {
