@@ -50,7 +50,6 @@ func TestMatchLine(t *testing.T) {
 		{[]byte("a cat"), "a (cat|dog)", true},
 		{[]byte("dogs"), "(cat|dog)s", true},
 		{[]byte("cats"), "(cat|dog)s", true},
-
 		{[]byte("caaat"), "ca{3}t", true},
 		{[]byte("caat"), "ca{3}t", false},
 		{[]byte("caaaat"), "ca{3}t", false},

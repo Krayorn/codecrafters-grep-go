@@ -24,7 +24,6 @@ func walk(s string, d fs.DirEntry, err error) error {
 	return nil
 }
 
-// Usage: echo <input_text> | your_program.sh -E <pattern>
 func main() {
 	recursive := false
 	pattern := ""
