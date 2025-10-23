@@ -137,9 +137,24 @@ func splitPatterns(pattern string) []Pattern {
 			pattern = pattern[end+1:]
 		case '{':
 			end := strings.IndexByte(pattern, '}')
-			targetNumber, _ := strconv.Atoi(string(pattern[1]))
-			patterns[len(patterns)-1].Max = targetNumber
-			patterns[len(patterns)-1].Min = targetNumber
+			if strings.Contains(string(pattern[1:end]), ",") {
+				splits := strings.Split(pattern[1:end], ",")
+				if len(splits) > 1 {
+					targetNumberMin, _ := strconv.Atoi(splits[0])
+					targetNumberMax, _ := strconv.Atoi(splits[1])
+
+					patterns[len(patterns)-1].Min = targetNumberMin
+					patterns[len(patterns)-1].Max = targetNumberMax
+				} else {
+					targetNumberMin, _ := strconv.Atoi(splits[0])
+					patterns[len(patterns)-1].Min = targetNumberMin
+					patterns[len(patterns)-1].Multiple = true
+				}
+			} else {
+				targetNumber, _ := strconv.Atoi(string(pattern[1]))
+				patterns[len(patterns)-1].Max = targetNumber
+				patterns[len(patterns)-1].Min = targetNumber
+			}
 			pattern = pattern[end+1:]
 		case '(':
 			end := -1
