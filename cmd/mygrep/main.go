@@ -5,49 +5,95 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
+var walkFilepaths []string
+
+func walk(s string, d fs.DirEntry, err error) error {
+	if err != nil {
+		return err
+	}
+	if !d.IsDir() {
+		walkFilepaths = append(walkFilepaths, s)
+	}
+	return nil
+}
+
 // Usage: echo <input_text> | your_program.sh -E <pattern>
 func main() {
-	if len(os.Args) < 3 || os.Args[1] != "-E" {
-		fmt.Fprintf(os.Stderr, "usage: mygrep -E <pattern>\n")
-		os.Exit(2) // 1 means no lines were selected, >1 means error
+	recursive := false
+	pattern := ""
+	filenames := make([]string, 0)
+
+	i := 1
+	for len(os.Args) > i {
+		arg := os.Args[i]
+		if arg == "-r" {
+			recursive = true
+		} else if arg == "-E" {
+			i++
+			if len(os.Args) < i-1 {
+				os.Exit(2)
+			}
+			pattern = os.Args[i]
+		} else {
+			filenames = append(filenames, arg)
+		}
+		i++
 	}
 
-	pattern := os.Args[2]
+	if pattern == "" {
+		os.Exit(2)
+	}
 
-	if len(os.Args) >= 4 {
-		i := 3
+	if len(filenames) > 0 {
 		anyMatch := false
 
-		for len(os.Args) > i {
-			filename := os.Args[i]
-			file, _ := os.Open(filename)
-			scanner := bufio.NewScanner(file)
+		for _, filename := range filenames {
+			filepaths := make([]string, 0)
 
-			for scanner.Scan() {
-				line := scanner.Text()
-				ok := matchLine([]byte(line), pattern)
-				if ok {
-					anyMatch = true
-					if len(os.Args) == 4 {
-						fmt.Printf("%s\n", line)
-					} else {
-						fmt.Printf("%s:%s\n", filename, line)
+			fi, _ := os.Stat(filename)
+			switch mode := fi.Mode(); {
+			case mode.IsDir():
+				if !recursive {
+					os.Exit(2)
+				}
+				walkFilepaths = make([]string, 0)
+				filepath.WalkDir(filename, walk)
+				filepaths = walkFilepaths
+			case mode.IsRegular():
+				filepaths = append(filepaths, filename)
+			}
+
+			for _, filepath := range filepaths {
+				file, _ := os.Open(filepath)
+				scanner := bufio.NewScanner(file)
+
+				for scanner.Scan() {
+					line := scanner.Text()
+					ok := matchLine([]byte(line), pattern)
+					if ok {
+						anyMatch = true
+						if len(filenames) == 1 && !recursive {
+							fmt.Printf("%s\n", line)
+						} else {
+							fmt.Printf("%s:%s\n", filepath, line)
+						}
 					}
 				}
 			}
-			i++
+
 		}
 
 		if anyMatch {
 			os.Exit(0)
 		}
 		os.Exit(1)
-
 	}
 
 	line, err := io.ReadAll(os.Stdin) // assume we're only dealing with a single line
