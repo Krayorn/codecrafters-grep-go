@@ -14,17 +14,6 @@ import (
 
 var walkFilepaths []string
 
-func walk(s string, d fs.DirEntry, err error) error {
-	if err != nil {
-		return err
-	}
-	if !d.IsDir() {
-		walkFilepaths = append(walkFilepaths, s)
-	}
-	return nil
-}
-
-// Usage: echo <input_text> | your_program.sh -E <pattern>
 func main() {
 	recursive := false
 	pattern := ""
@@ -109,13 +98,24 @@ func main() {
 	os.Exit(0)
 }
 
+func walk(s string, d fs.DirEntry, err error) error {
+	if err != nil {
+		return err
+	}
+	if !d.IsDir() {
+		walkFilepaths = append(walkFilepaths, s)
+	}
+	return nil
+}
+
 type Pattern struct {
 	Pattern  string
 	Min      int
 	Max      int
 	Multiple bool
 	Optional bool
-	Matched  int
+
+	Matched int // reset between each try, used to follow how much a token consumed already
 }
 
 func splitPatterns(pattern string) []Pattern {
@@ -129,7 +129,6 @@ func splitPatterns(pattern string) []Pattern {
 			patterns = append(patterns, currentPattern)
 			pattern = pattern[2:]
 		case '[':
-
 			end := strings.IndexByte(pattern, ']')
 			currentPattern.Pattern = pattern[:end+1]
 			patterns = append(patterns, currentPattern)
@@ -218,177 +217,155 @@ func matchLine(text []byte, pattern string) bool {
 		line := text[i:]
 		groups := make([]string, 0)
 
-		extras = make(map[int]Lazy)
-		ok, _, _ := tryPatterns(line, patterns, groups)
-		if ok {
+		results := tryPatterns(line, patterns, groups)
+		if len(results) > 0 {
 			return true
-		}
-		for key := len(extras); key >= 0; key-- {
-			for {
-				if extras[key].Max-1 < 1 {
-					break
-				}
-				extras[key] = Lazy{Max: extras[key].Max - 1, Current: 0, Limit: extras[key].Max - 1}
-				patterns = splitPatterns(pattern)
-				ok, _, _ := tryPatterns(line, patterns, groups)
-				if ok {
-					return true
-				}
-			}
 		}
 	}
 	return false
 }
 
-type Lazy struct {
-	Max     int
-	Limit   int
-	Current int
+type Item struct {
+	Line     []byte
+	Patterns []Pattern
+	Groups   []string
 }
 
-var extras map[int]Lazy
+type Result struct {
+	Size   int
+	Groups []string
+}
 
-func tryPatterns(line []byte, patterns []Pattern, groups []string) (bool, int, []string) {
+func tryPatterns(line []byte, patterns []Pattern, groups []string) []Result {
 	originalSize := len(line)
-	for patternIndex, pattern := range patterns {
-		if pattern.Pattern == "$" {
+
+	queue := make([]Item, 0)
+	queue = append(queue, Item{Line: line, Patterns: patterns, Groups: groups})
+
+	results := make([]Result, 0)
+
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+
+		if len(item.Patterns) == 0 {
+			results = append(results, Result{originalSize - len(item.Line), item.Groups})
+			continue
+		}
+
+		currentPattern := item.Patterns[0]
+		line := item.Line
+		groups := item.Groups
+
+		if currentPattern.Pattern == "$" {
 			if len(line) == 0 {
-				return true, originalSize, groups
+				results = append(results, Result{originalSize - len(item.Line), item.Groups})
+				continue
 			} else {
-				return false, -1, groups
+				continue
 			}
 		}
 
 		if len(line) == 0 {
-			if pattern.Optional {
-				continue
+			if currentPattern.Optional {
+				queue = append(queue, Item{line, item.Patterns[1:], item.Groups})
 			}
-			return false, -1, groups
+			continue
 		}
 
-		size, foundGroups := matchPattern(pattern.Pattern, line, groups)
-		groups = foundGroups
-		if size == 0 {
-			if pattern.Optional || (pattern.Min != -1 && pattern.Matched >= pattern.Min) {
-				continue
-			}
-			return false, -1, groups
-		}
+		matches := make([]Item, 0)
 
-		line = line[size:]
+		if currentPattern.Pattern[0] == '\\' && currentPattern.Pattern[1] == 'd' {
+			if line[0] >= '0' && line[0] <= '9' {
+				matches = append(matches, Item{line[1:], item.Patterns, item.Groups})
+			}
+		} else if currentPattern.Pattern[0] == '\\' && currentPattern.Pattern[1] == 'w' {
+			if (line[0] >= 'a' && line[0] <= 'z') || (line[0] >= 'A' && line[0] <= 'Z') || (line[0] >= '0' && line[0] <= '9') || line[0] == '_' {
+				matches = append(matches, Item{line[1:], item.Patterns, item.Groups})
+			}
+		} else if currentPattern.Pattern[0] == '\\' && currentPattern.Pattern[1] >= '0' && currentPattern.Pattern[1] <= '9' {
+			number, _ := strconv.Atoi(string(currentPattern.Pattern[1]))
+			if groups[number-1] == string(line[0:len(groups[number-1])]) {
+				matches = append(matches, Item{line[len(groups[number-1]):], item.Patterns, item.Groups})
+			}
+		} else if currentPattern.Pattern[0] == '[' {
+			closingBrackets := bytes.IndexAny([]byte(currentPattern.Pattern), "]")
+			if currentPattern.Pattern[1] == '^' {
+				if !bytes.ContainsAny([]byte{line[0]}, currentPattern.Pattern[1:closingBrackets]) {
+					matches = append(matches, Item{line[1:], item.Patterns, item.Groups})
+				}
+			} else {
+				if bytes.ContainsAny([]byte{line[0]}, currentPattern.Pattern[1:closingBrackets]) {
+					matches = append(matches, Item{line[1:], item.Patterns, item.Groups})
+				}
+			}
+		} else if currentPattern.Pattern[0] == '(' {
+			c := 0
+			rules := make([]string, 0)
+			last := 1
+			closingParenthesis := -1
+			for j := 0; j < len(currentPattern.Pattern); j++ {
+				if currentPattern.Pattern[j] == '(' {
+					c++
+				}
+				if currentPattern.Pattern[j] == ')' {
+					c--
+				}
 
-		if pattern.Min != -1 || pattern.Max != -1 {
-			patterns[patternIndex].Matched = patterns[patternIndex].Matched + 1
-			if patterns[patternIndex].Matched == patterns[patternIndex].Max {
-				continue
-			}
-			ok, size, subGroups := tryPatterns(line, patterns[patternIndex:], groups)
-			if ok {
-				return true, originalSize - len(line) + size, subGroups
-			}
-			if patterns[patternIndex].Matched >= patterns[patternIndex].Min {
-				continue
-			}
-			return false, -1, groups
-		}
-
-		if pattern.Multiple {
-			limit := -1
-			current := -1
-			for index, value := range groups {
-				if value == "XXX" {
-					if val, ok := extras[index]; ok {
-						limit = val.Limit
-						val.Current++
-						current = val.Current
-						extras[index] = val
-					}
+				if currentPattern.Pattern[j] == '|' && c == 1 {
+					rules = append(rules, currentPattern.Pattern[last:j])
+					last = j + 1
+				}
+				if c == 0 {
+					closingParenthesis = j
 					break
 				}
 			}
-			if limit != -1 && current >= limit {
-				continue
-			}
-			ok, size, subGroups := tryPatterns(line, patterns[patternIndex:], groups)
-			if ok {
-				return true, originalSize - len(line) + size, subGroups
-			}
-		}
-	}
+			rules = append(rules, currentPattern.Pattern[last:closingParenthesis])
 
-	return true, originalSize - len(line), groups
-}
+			for _, rule := range rules {
+				subPatterns := splitPatterns(rule)
+				groups = append(groups, "XXX")
+				subResults := tryPatterns(line, subPatterns, groups)
+				if len(subResults) > 0 {
+					for _, subResult := range subResults {
+						groups[len(groups)-1] = string(line[:subResult.Size])
 
-func matchPattern(pattern string, line []byte, groups []string) (int, []string) {
-	if pattern[0] == '\\' && pattern[1] == 'd' {
-		if line[0] >= '0' && line[0] <= '9' {
-			return 1, groups
-		}
-	} else if pattern[0] == '\\' && pattern[1] == 'w' {
-		if (line[0] >= 'a' && line[0] <= 'z') || (line[0] >= 'A' && line[0] <= 'Z') || (line[0] >= '0' && line[0] <= '9') || line[0] == '_' {
-			return 1, groups
-		}
-	} else if pattern[0] == '\\' && pattern[1] >= '0' && pattern[1] <= '9' {
-		number, _ := strconv.Atoi(string(pattern[1]))
-		if groups[number-1] == string(line[0:len(groups[number-1])]) {
-			return len(groups[number-1]), groups
-		}
-	} else if pattern[0] == '[' {
-		closingBrackets := bytes.IndexAny([]byte(pattern), "]")
-		if pattern[1] == '^' {
-			if !bytes.ContainsAny([]byte{line[0]}, pattern[1:closingBrackets]) {
-				return 1, groups
+						matches = append(matches, Item{Line: line[subResult.Size:], Patterns: item.Patterns, Groups: append(groups, subResult.Groups[len(groups):]...)})
+					}
+				}
 			}
 		} else {
-			if bytes.ContainsAny([]byte{line[0]}, pattern[1:closingBrackets]) {
-				return 1, groups
+			if currentPattern.Pattern[0] == '.' {
+				matches = append(matches, Item{line[1:], item.Patterns, item.Groups})
+			} else if bytes.ContainsAny([]byte{line[0]}, string(currentPattern.Pattern[0])) {
+				matches = append(matches, Item{line[1:], item.Patterns, item.Groups})
 			}
 		}
-	} else if pattern[0] == '(' {
-		c := 0
-		rules := make([]string, 0)
-		last := 1
-		closingParenthesis := -1
-		for j := 0; j < len(pattern); j++ {
-			if pattern[j] == '(' {
-				c++
-			}
-			if pattern[j] == ')' {
-				c--
-			}
 
-			if pattern[j] == '|' && c == 1 {
-				rules = append(rules, pattern[last:j])
-				last = j + 1
-			}
-			if c == 0 {
-				closingParenthesis = j
-				break
-			}
-		}
-		rules = append(rules, pattern[last:closingParenthesis])
-
-		for _, rule := range rules {
-			subPatterns := splitPatterns(rule)
-			groups = append(groups, "XXX")
-			ok, totalSize, subGroups := tryPatterns(line, subPatterns, groups)
-			if ok {
-				groups[len(groups)-1] = string(line[:totalSize])
-				if _, ok := extras[len(groups)-1]; !ok {
-					extras[len(groups)-1] = Lazy{Max: totalSize, Limit: -1}
+		if len(matches) > 0 {
+			for _, match := range matches {
+				if currentPattern.Min != -1 {
+					match.Patterns[0].Matched = match.Patterns[0].Matched + 1
 				}
-				groups = append(groups, subGroups[len(groups):]...)
-				return totalSize, groups
-			}
-		}
+				if currentPattern.Multiple {
+					queue = append(queue, Item{Line: match.Line, Patterns: match.Patterns, Groups: match.Groups})
+				}
 
-	} else {
-		if pattern[0] == '.' {
-			return 1, groups
-		} else if bytes.ContainsAny([]byte{line[0]}, string(pattern[0])) {
-			return 1, groups
+				if currentPattern.Max != 1 && match.Patterns[0].Matched < currentPattern.Max {
+					queue = append(queue, Item{Line: match.Line, Patterns: match.Patterns, Groups: match.Groups})
+				}
+
+				if currentPattern.Min == -1 || match.Patterns[0].Matched >= currentPattern.Min {
+					queue = append(queue, Item{Line: match.Line, Patterns: match.Patterns[1:], Groups: match.Groups})
+				}
+			}
+		} else {
+			if currentPattern.Optional {
+				queue = append(queue, Item{Line: item.Line, Patterns: item.Patterns[1:], Groups: item.Groups})
+			}
 		}
 	}
 
-	return 0, groups
+	return results
 }
