@@ -58,7 +58,7 @@ func TestMatchLine(t *testing.T) {
 		{[]byte("d123g"), "d\\d{2}g", false},
 		{[]byte("czyxzw"), "c[xyz]{4}w", true},
 		{[]byte("cxyzw"), "c[xyz]{4}w", false},
-		{[]byte("mangooo"), "mangoo{2,}", true},
+		{[]byte("pearrr"), "pearr{2,}", true},
 		{[]byte("caat"), "ca{2,}t", true},
 		{[]byte("caaaaaaat"), "ca{2,}t", true},
 		{[]byte("cat"), "ca{2,}t", false},

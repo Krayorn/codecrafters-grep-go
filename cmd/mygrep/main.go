@@ -103,11 +103,9 @@ func main() {
 
 	ok := matchLine(line, pattern)
 	if !ok {
-		fmt.Println("Not matched")
 		os.Exit(1)
 	}
 
-	fmt.Println("Matched")
 	os.Exit(0)
 }
 
@@ -142,14 +140,15 @@ func splitPatterns(pattern string) []Pattern {
 				splits := strings.Split(pattern[1:end], ",")
 				if len(splits) > 1 {
 					targetNumberMin, _ := strconv.Atoi(splits[0])
-					targetNumberMax, _ := strconv.Atoi(splits[1])
+					targetNumberMax, err := strconv.Atoi(splits[1])
+					if err != nil {
+						patterns[len(patterns)-1].Multiple = true
+
+					} else {
+						patterns[len(patterns)-1].Max = targetNumberMax
+					}
 
 					patterns[len(patterns)-1].Min = targetNumberMin
-					patterns[len(patterns)-1].Max = targetNumberMax
-				} else {
-					targetNumberMin, _ := strconv.Atoi(splits[0])
-					patterns[len(patterns)-1].Min = targetNumberMin
-					patterns[len(patterns)-1].Multiple = true
 				}
 			} else {
 				targetNumber, _ := strconv.Atoi(string(pattern[1]))
@@ -197,7 +196,6 @@ func splitPatterns(pattern string) []Pattern {
 
 func matchLine(text []byte, pattern string) bool {
 	patterns := splitPatterns(pattern)
-	fmt.Println(patterns)
 	if len(patterns) == 0 {
 		return true
 	}
@@ -287,6 +285,9 @@ func tryPatterns(line []byte, patterns []Pattern, groups []string) (bool, int, [
 			ok, size, subGroups := tryPatterns(line, patterns[patternIndex:], groups)
 			if ok {
 				return true, originalSize - len(line) + size, subGroups
+			}
+			if patterns[patternIndex].Matched >= patterns[patternIndex].Min {
+				continue
 			}
 			return false, -1, groups
 		}
